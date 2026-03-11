@@ -1,4 +1,5 @@
 import { FastifyRequest } from 'fastify';
+import { SanitizeGuard } from './SanitizeGuard.js';
 
 export interface GuardResult {
   valid: boolean;
@@ -76,36 +77,13 @@ export const SchemaGuard: Guard = async (context: GuardContext): Promise<GuardRe
   return { valid: true };
 };
 
-export const SanitizeGuard: Guard = async (context: GuardContext): Promise<GuardResult> => {
-  const body = context.body;
+export const SanitizeGuardNew: Guard = async (context: GuardContext): Promise<GuardResult> => {
+  const { valid, sanitized, warnings } = await SanitizeGuard.checkForXSS(context.body as Record<string, unknown>);
   
-  const sanitizeValue = (value: unknown): unknown => {
-    if (typeof value === 'string') {
-      return value
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/javascript:/gi, '')
-        .replace(/on\w+\s*=/gi, '');
-    }
-    
-    if (Array.isArray(value)) {
-      return value.map(sanitizeValue);
-    }
-    
-    if (value && typeof value === 'object') {
-      const sanitized: Record<string, unknown> = {};
-      for (const [key, val] of Object.entries(value)) {
-        sanitized[key] = sanitizeValue(val);
-      }
-      return sanitized;
-    }
-    
-    return value;
-  };
+  context.body = sanitized;
 
-  const sanitized = sanitizeValue(body);
-  
-  if (sanitized !== body) {
-    context.body = sanitized as Record<string, unknown>;
+  if (warnings.length > 0) {
+    SanitizeGuard.logSanitization(context.traceId, warnings);
   }
 
   return { valid: true };
@@ -151,6 +129,6 @@ export const RateLimitGuard: Guard = async (context: GuardContext): Promise<Guar
 export const defaultGuardChain = [
   AuthGuard,
   SchemaGuard,
-  SanitizeGuard,
+  SanitizeGuardNew,
   RateLimitGuard,
 ];

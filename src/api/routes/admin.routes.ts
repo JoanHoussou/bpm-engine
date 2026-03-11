@@ -438,6 +438,52 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ success: true, message: `Workflow cancelled with ${completedSteps.length} compensations` });
   });
 
+  // Replay endpoints
+  app.get('/executions/:id/timeline', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { ArchiveService } = await import('../../phases/phase4-output/ArchiveService.js');
+    const timeline = await ArchiveService.getExecutionTimeline(request.params.id);
+
+    return reply.send({
+      execution_id: request.params.id,
+      timeline,
+    });
+  });
+
+  app.post('/executions/:id/replay', async (request: FastifyRequest<{ Params: { id: string }; Body: { from_step?: string; use_original_payload?: boolean } }>, reply: FastifyReply) => {
+    const { ArchiveService } = await import('../../phases/phase4-output/ArchiveService.js');
+    
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!execution) {
+      return reply.status(404).send({ error: 'Execution not found' });
+    }
+
+    const result = await ArchiveService.replayExecution(request.params.id, {
+      fromStep: request.body?.from_step,
+      useOriginalPayload: request.body?.use_original_payload ?? true,
+    });
+
+    if (!result.success) {
+      return reply.status(400).send(result);
+    }
+
+    return reply.send(result);
+  });
+
+  app.get('/executions/replayable', async (request: FastifyRequest<{ Querystring: { type?: string; status?: string; limit?: string } }>, reply: FastifyReply) => {
+    const { ArchiveService } = await import('../../phases/phase4-output/ArchiveService.js');
+    
+    const executions = await ArchiveService.getReplayableExecutions({
+      type: request.query.type,
+      status: request.query.status,
+      limit: parseInt(request.query.limit || '50', 10),
+    });
+
+    return reply.send({ executions });
+  });
+
   app.get('/workflows', async (request: FastifyRequest<{ Querystring: { limit?: string; offset?: string; search?: string; sortBySteps?: string } }>, reply: FastifyReply) => {
     const limit = parseInt(request.query.limit || '10', 10);
     const offset = parseInt(request.query.offset || '0', 10);

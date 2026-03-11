@@ -24,6 +24,17 @@ export interface KPIsSnapshot {
   global: KPI;
 }
 
+export interface ReplayOptions {
+  fromStep?: string;
+  useOriginalPayload?: boolean;
+}
+
+export interface ReplayResult {
+  success: boolean;
+  newExecutionId: string | null;
+  message: string;
+}
+
 class ArchiveServiceClass {
   private snapshotInterval: NodeJS.Timeout | null = null;
 
@@ -163,6 +174,165 @@ class ArchiveServiceClass {
     `;
 
     return results;
+  }
+
+  async getExecutionForReplay(executionId: string): Promise<{
+    type: string;
+    payload: Record<string, unknown>;
+    context: Record<string, unknown>;
+    events: any[];
+  } | null> {
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId },
+    });
+
+    if (!execution) {
+      return null;
+    }
+
+    const events = await prisma.workflowEvent.findMany({
+      where: { executionId },
+      orderBy: { timestamp: 'asc' },
+    });
+
+    return {
+      type: execution.type,
+      payload: execution.payload as Record<string, unknown>,
+      context: execution.context as Record<string, unknown>,
+      events: events.map(e => ({
+        type: e.eventType,
+        step: e.stepName,
+        data: e.data,
+        timestamp: e.timestamp,
+      })),
+    };
+  }
+
+  async replayExecution(
+    originalExecutionId: string,
+    options: ReplayOptions = {}
+  ): Promise<ReplayResult> {
+    const { fromStep, useOriginalPayload = true } = options;
+
+    const replayData = await this.getExecutionForReplay(originalExecutionId);
+    if (!replayData) {
+      return {
+        success: false,
+        newExecutionId: null,
+        message: `Original execution ${originalExecutionId} not found`,
+      };
+    }
+
+    const { v4: uuidv4 } = await import('uuid');
+    const newExecutionId = uuidv4();
+
+    let payload = replayData.payload;
+    let startFromStep = 0;
+
+    if (!useOriginalPayload) {
+      return {
+        success: false,
+        newExecutionId: null,
+        message: 'Custom payload replay not yet implemented',
+      };
+    }
+
+    if (fromStep) {
+      const stepIndex = replayData.events.findIndex(
+        (e: any) => e.step === fromStep && e.type === 'STEP_STARTED'
+      );
+      if (stepIndex === -1) {
+        return {
+          success: false,
+          newExecutionId: null,
+          message: `Step ${fromStep} not found in original execution`,
+        };
+      }
+
+      payload = this.rebuildPayloadFromEvents(replayData.events, stepIndex);
+      startFromStep = stepIndex + 1;
+    }
+
+    await this.writeEvent(
+      newExecutionId,
+      'REPLAY_INITIATED',
+      null,
+      {
+        originalExecutionId,
+        fromStep,
+        startFromStep,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
+    return {
+      success: true,
+      newExecutionId,
+      message: `Replay initiated. New execution: ${newExecutionId}. Use POST /api/v1/workflow/execute with the original payload to run.`,
+    };
+  }
+
+  private rebuildPayloadFromEvents(events: any[], upToStepIndex: number): Record<string, unknown> {
+    const replayPayload: Record<string, unknown> = {};
+
+    for (let i = 0; i <= upToStepIndex; i++) {
+      const event = events[i];
+      if (event.data && event.data.payload) {
+        Object.assign(replayPayload, event.data.payload);
+      }
+    }
+
+    return replayPayload;
+  }
+
+  async getReplayableExecutions(filters: {
+    type?: string;
+    status?: string;
+    limit?: number;
+  } = {}): Promise<any[]> {
+    const { type, status, limit = 50 } = filters;
+
+    const where: any = {};
+    if (type) where.type = type;
+    if (status) where.status = status;
+
+    const executions = await prisma.workflowExecution.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+        payload: true,
+      },
+    });
+
+    return executions.map(e => ({
+      execution_id: e.id,
+      type: e.type,
+      status: e.status,
+      created_at: e.createdAt?.toISOString(),
+      completed_at: e.completedAt?.toISOString(),
+      can_replay: e.status !== 'COMPLETED' && e.status !== 'RUNNING',
+    }));
+  }
+
+  async getExecutionTimeline(executionId: string): Promise<any[]> {
+    const events = await prisma.workflowEvent.findMany({
+      where: { executionId },
+      orderBy: { timestamp: 'asc' },
+    });
+
+    return events.map(e => ({
+      id: e.id,
+      step: e.stepName,
+      type: e.eventType,
+      data: e.data,
+      timestamp: e.timestamp.toISOString(),
+    }));
   }
 
   async stop(): Promise<void> {
