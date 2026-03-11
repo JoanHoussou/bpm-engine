@@ -169,5 +169,24 @@ const API = {
 
   async cancelExecution(executionId) {
     return this.call(`/executions/${executionId}/cancel`, { method: 'POST' });
+  },
+
+  async getExecutionTimeline(executionId) {
+    return this.call(`/executions/${executionId}/timeline`);
+  },
+
+  async replayExecution(executionId, options = {}) {
+    return this.call(`/executions/${executionId}/replay`, { 
+      method: 'POST',
+      body: options
+    });
+  },
+
+  async getReplayableExecutions(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.type) params.append('type', filters.type);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.limit) params.append('limit', String(filters.limit));
+    return this.call(`/executions/replayable?${params.toString()}`);
   }
 };

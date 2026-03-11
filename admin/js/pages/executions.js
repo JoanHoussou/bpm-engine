@@ -99,6 +99,8 @@ Pages.executions = {
                 <button class="tb-btn" style="text-align:left;width:100%" onclick="Pages.executions.escalate('${exec.execution_id}')" ${exec.status !== 'WAITING_HUMAN' ? 'disabled' : ''}>↑ Escalader manuellement</button>
                 <button class="tb-btn" style="text-align:left;width:100%;color:var(--orange)" onclick="Pages.executions.suspend('${exec.execution_id}')" ${['WAITING_HUMAN','RUNNING'].indexOf(exec.status) === -1 ? 'disabled' : ''}>⏸ Suspendre le workflow</button>
                 <button class="tb-btn" style="text-align:left;width:100%;color:var(--red)" onclick="Pages.executions.cancel('${exec.execution_id}')" ${['COMPLETED','FAILED','CANCELLED'].indexOf(exec.status) > -1 ? 'disabled' : ''}>✕ Annuler + Saga rollback</button>
+                <button class="tb-btn primary" style="text-align:left;width:100%" onclick="Pages.executions.replay('${exec.execution_id}')">↻ Rejouer cette exécution</button>
+                <button class="tb-btn" style="text-align:left;width:100%" onclick="Pages.executions.showTimeline('${exec.execution_id}')">📋 Voir la timeline</button>
               </div>
             </div>
           </div>
@@ -308,6 +310,68 @@ Pages.executions = {
       App.showToast(result.message || 'Workflow annulé');
       this.load(this.page);
       this.closeDetail();
+    } catch (e) {
+      App.showToast('Erreur: ' + e.message);
+    }
+  },
+
+  async replay(executionId) {
+    if (!confirm('Voulez-vous rejouer cette exécution? Une nouvelle exécution sera créée avec le même payload.')) return;
+    try {
+      const result = await API.replayExecution(executionId);
+      if (result.success) {
+        App.showToast('Nouvelle exécution créée: ' + result.newExecutionId);
+        this.load(this.page);
+      } else {
+        App.showToast('Erreur: ' + result.message);
+      }
+    } catch (e) {
+      App.showToast('Erreur: ' + e.message);
+    }
+  },
+
+  async showTimeline(executionId) {
+    try {
+      const data = await API.getExecutionTimeline(executionId);
+      const timeline = data.timeline || [];
+      
+      let html = '<div style="max-height:400px;overflow-y:auto">';
+      timeline.forEach((event, i) => {
+        const icon = event.type === 'STEP_STARTED' ? '▶' 
+          : event.type === 'STEP_COMPLETED' ? '✓' 
+          : event.type === 'STEP_FAILED' ? '✗'
+          : event.type === 'WORKFLOW_COMPLETED' ? '✓✓'
+          : event.type === 'WORKFLOW_FAILED' ? '✗✗'
+          : '●';
+        const color = event.type.includes('COMPLETED') ? 'var(--green)' 
+          : event.type.includes('FAILED') ? 'var(--red)' 
+          : 'var(--muted)';
+        
+        html += `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px">
+            <span style="color:${color}">${icon}</span>
+            <span style="color:var(--text)">${event.type}</span>
+            ${event.step ? `<span style="color:var(--blue)">${event.step}</span>` : ''}
+            <span style="color:var(--muted);margin-left:auto">${Utils.formatDate(event.timestamp)}</span>
+          </div>
+        `;
+      });
+      html += '</div>';
+      
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:600px;width:90%">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;color:var(--text)">Timeline: ${executionId}</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
+          </div>
+          ${html}
+        </div>
+      `;
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      document.body.appendChild(modal);
     } catch (e) {
       App.showToast('Erreur: ' + e.message);
     }
