@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPM Engine — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin/css/variables.css">
+<link rel="stylesheet" href="/admin/css/base.css">
+<link rel="stylesheet" href="/admin/css/components.css">
+<link rel="stylesheet" href="/admin/css/layout.css">
+<link rel="stylesheet" href="/admin/css/workflow-editor.css">
+</head>
+<body>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">B</div>
+      <div>
+        <div class="logo-text">BPM Engine</div>
+        <div class="logo-sub">v2.0 · Admin</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="main-nav">
+      <div class="nav-section">Principal</div>
+      <div class="nav-item active" data-page="dashboard">
+        <span class="ni">◈</span> Dashboard
+      </div>
+      <div class="nav-item" data-page="executions">
+        <span class="ni">⟳</span> Exécutions
+        <span class="nav-badge" id="nav-waiting-badge" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-page="workflows">
+        <span class="ni">◫</span> Workflows
+      </div>
+
+      <div class="nav-section">Accès</div>
+      <div class="nav-item" data-page="clients">
+        <span class="ni">⬡</span> Clients
+      </div>
+      <div class="nav-item" data-page="apikeys">
+        <span class="ni">⌘</span> API Keys
+      </div>
+
+      <div class="nav-section">Système</div>
+      <div class="nav-item" data-page="system">
+        <span class="ni">⚡</span> Santé système
+      </div>
+      <div class="nav-item" data-page="settings">
+        <span class="ni">⚙</span> Paramètres
+      </div>
+      <div class="nav-item" data-page="logs">
+        <span class="ni">≡</span> Logs d'accès
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-status">
+        <span class="status-dot"></span>
+        Moteur opérationnel
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:4px;font-family:var(--font-mono)" id="uptime">
+        uptime --
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <div class="page-title" id="page-title">Dashboard</div>
+          <div class="page-sub" id="page-sub">Vue d'ensemble du moteur BPM</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <input type="text" id="global-search" class="input" placeholder="Rechercher..." style="width:180px">
+        <button class="tb-btn" id="theme-toggle" onclick="App.toggleTheme()" title="Changer de thème">🌙</button>
+        <div class="live" id="live-badge" style="display:none">LIVE</div>
+        <button class="tb-btn" onclick="Modals.open('modal-client')">+ Nouveau client</button>
+        <button class="tb-btn primary" onclick="Modals.open('modal-apikey')">+ Générer API Key</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Dashboard -->
+      <div class="section active fade-in" id="section-dashboard">
+        <div class="stats-row">
+          <div class="stat-card" style="--c:var(--blue)">
+            <div class="stat-label">Exécutions aujourd'hui</div>
+            <div class="stat-value" id="stat-executions">--</div>
+            <div class="stat-sub" id="stat-executions-sub">Chargement...</div>
+            <div class="stat-icon">⟳</div>
+          </div>
+          <div class="stat-card" style="--c:var(--green)">
+            <div class="stat-label">Taux de succès</div>
+            <div class="stat-value" id="stat-success-rate">--%</div>
+            <div class="stat-sub" id="stat-success-sub">-- échecs</div>
+            <div class="stat-icon">✓</div>
+          </div>
+          <div class="stat-card" style="--c:var(--orange)">
+            <div class="stat-label">En attente humaine</div>
+            <div class="stat-value" id="stat-waiting">--</div>
+            <div class="stat-sub" id="stat-waiting-sub">-- en retard</div>
+            <div class="stat-icon">⏸</div>
+          </div>
+          <div class="stat-card" style="--c:var(--purple)">
+            <div class="stat-label">Clients actifs</div>
+            <div class="stat-value" id="stat-clients">--</div>
+            <div class="stat-sub" id="stat-clients-sub">-- workflows</div>
+            <div class="stat-icon">⬡</div>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Activité — 7 derniers jours</span>
+            </div>
+            <div class="card-body" style="padding-bottom:12px">
+              <div class="chart-bars" id="chart"></div>
+              <div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+                  <div style="width:8px;height:8px;border-radius:2px;background:var(--blue)"></div> Complétés
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+                  <div style="width:8px;height:8px;border-radius:2px;background:var(--orange)"></div> En attente
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+                  <div style="width:8px;height:8px;border-radius:2px;background:var(--red)"></div> Échoués
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Par type de workflow</span>
+            </div>
+            <div class="card-body" id="workflow-types">
+              <div class="loading">Chargement...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Exécutions récentes</span>
+            <span class="card-action" onclick="App.navigate('executions')">Voir tout →</span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Execution ID</th>
+                  <th>Type</th>
+                  <th>Client</th>
+                  <th>Statut</th>
+                  <th>Étape courante</th>
+                  <th>Démarré</th>
+                </tr>
+              </thead>
+              <tbody id="recent-executions">
+                <tr><td colspan="6" class="loading">Chargement...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Executions -->
+      <div class="section fade-in" id="section-executions">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header"><span class="card-title">Filtres</span></div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <select class="form-input" style="width:auto" id="filter-status" onchange="Pages.executions.load()">
+                <option value="">Tous les statuts</option>
+                <option value="RUNNING">RUNNING</option>
+                <option value="WAITING_HUMAN">WAITING_HUMAN</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="FAILED">FAILED</option>
+                <option value="REJECTED">REJECTED</option>
+              </select>
+              <select class="form-input" style="width:auto" id="filter-type" onchange="Pages.executions.load()">
+                <option value="">Tous les types</option>
+              </select>
+              <button class="tb-btn" onclick="Pages.executions.load()">Appliquer</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="execution-detail" style="display:none">
+          <div class="card-header">
+            <span class="card-title" id="detail-title">Détails de l'exécution</span>
+            <button class="tb-btn" onclick="Pages.executions.closeDetail()">✕ Fermer</button>
+          </div>
+          <div class="card-body" id="detail-body"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Exécutions</span></div>
+          <div class="card-body" style="padding:0">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Execution ID</th>
+                  <th>Type</th>
+                  <th>Client</th>
+                  <th>Statut</th>
+                  <th>Étape courante</th>
+                  <th>Démarré</th>
+                </tr>
+              </thead>
+              <tbody id="executions-list">
+                <tr><td colspan="6" class="loading">Chargement...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="exec-pagination" style="padding:16px;display:flex;gap:8px;justify-content:center;border-top:1px solid var(--border)"></div>
+        </div>
+      </div>
+
+      <!-- Workflows -->
+      <div class="section fade-in" id="section-workflows">
+        <div class="workflow-list-header">
+          <span class="card-title">Workflows enregistrés</span>
+          <div class="workflow-list-actions">
+            <button class="tb-btn" onclick="Pages.workflows.showList()">← Retour à la liste</button>
+            <button class="tb-btn primary" onclick="Pages.workflows.createNew()">+ Nouveau workflow</button>
+          </div>
+        </div>
+        
+        <!-- Workflow List View -->
+        <div class="card" id="workflows-list-view">
+          <div class="card-body" style="padding:0">
+            <table class="tbl">
+              <thead><tr>
+                <th>Type</th><th>Version</th><th>Étapes</th><th>Humaines</th><th>Dernière MAJ</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="workflows-table">
+                <tr><td colspan="6" class="loading">Chargement...</td></tr>
+              </tbody>
+            </table>
+            <div id="workflows-pagination" class="pagination-wrap"></div>
+          </div>
+        </div>
+
+        <!-- Workflow Editor View -->
+        <div class="workflow-editor" id="workflows-editor-view" style="display:none">
+          <!-- Panel Gauche -->
+          <div class="editor-panel-left">
+            <div class="editor-panel-header">
+              <div class="editor-logo">
+                <button class="editor-icon-btn" title="Retour à la liste" onclick="WorkflowEditor.showList()">←</button>
+                <div class="editor-logo-mark">B</div>
+                <span class="editor-logo-text">Workflow Editor</span>
+              </div>
+              <div class="editor-actions">
+                <button class="editor-icon-btn" id="btn-undo" title="Annuler (Ctrl+Z)" onclick="WorkflowEditor.undo()" disabled>↩</button>
+                <button class="editor-icon-btn" id="btn-redo" title="Rétablir (Ctrl+Y)" onclick="WorkflowEditor.redo()" disabled>↪</button>
+              </div>
+            </div>
+
+            <!-- Search -->
+            <div class="editor-search-wrap">
+              <div class="editor-search-input-wrap">
+                <span class="editor-search-icon">⌕</span>
+                <input class="editor-search-input" id="editor-search-input" placeholder="Filtrer les étapes..." oninput="WorkflowEditor.filterSteps(this.value)">
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="editor-tabs">
+              <div class="editor-tab active" data-tab="steps" onclick="WorkflowEditor.switchTab('steps')">Étapes</div>
+              <div class="editor-tab" data-tab="config" onclick="WorkflowEditor.switchTab('config')">Config</div>
+            </div>
+
+            <!-- Steps Tab -->
+            <div id="editor-tab-steps" class="editor-scroll" style="display:flex;flex-direction:column">
+              <div class="editor-steps-container" id="editor-steps-list"></div>
+              <div class="editor-steps-empty" id="editor-steps-empty" style="display:none">
+                <span class="editor-steps-empty-icon">⬡</span>
+                Aucune étape.<br>Commencez par en créer une.
+              </div>
+              <button class="editor-add-step-btn" onclick="WorkflowEditor.openAddStepModal()">
+                <span>+</span> Ajouter une étape
+              </button>
+            </div>
+
+            <!-- Config Tab -->
+            <div id="editor-tab-config" class="editor-scroll" style="display:none">
+              <div class="editor-section-label" style="margin-bottom:10px">Informations générales</div>
+
+              <div class="editor-form-group">
+                <label class="editor-form-label">Type / Identifiant <span class="editor-req">*</span></label>
+                <input class="editor-form-input" id="wf-type" placeholder="internship_request" oninput="WorkflowEditor.syncPreview()" value="internship_request">
+                <div class="editor-field-hint">kebab-case · ex: loan_request</div>
+              </div>
+              <div class="editor-form-group">
+                <label class="editor-form-label">Version</label>
+                <input class="editor-form-input" id="wf-version" placeholder="1.0.0" value="1.0.0" oninput="WorkflowEditor.syncPreview()">
+              </div>
+              <div class="editor-form-group">
+                <label class="editor-form-label">Base URL <span class="editor-req">*</span></label>
+                <input class="editor-form-input" id="wf-base-url" placeholder="https://app.internal.com" value="https://hr-app.internal.com" oninput="WorkflowEditor.syncPreview()">
+              </div>
+
+              <div class="editor-divider"></div>
+              <div class="editor-section-label" style="margin-bottom:10px">Callbacks</div>
+
+              <div class="editor-form-group">
+                <label class="editor-form-label">URL succès</label>
+                <input class="editor-form-input" id="wf-cb-ok" placeholder="/bpm/callback" value="/bpm/callback" oninput="WorkflowEditor.syncPreview()">
+              </div>
+              <div class="editor-form-group">
+                <label class="editor-form-label">Notification succès</label>
+                <select class="editor-form-select" id="wf-notif-ok" onchange="WorkflowEditor.syncPreview()">
+                  <option value="email">Email</option>
+                  <option value="slack">Slack</option>
+                  <option value="both">Email + Slack</option>
+                  <option value="none">Aucune</option>
+                </select>
+              </div>
+              <div class="editor-form-group">
+                <label class="editor-form-label">URL échec</label>
+                <input class="editor-form-input" id="wf-cb-fail" placeholder="/bpm/callback" value="/bpm/callback" oninput="WorkflowEditor.syncPreview()">
+              </div>
+              <div class="editor-form-group">
+                <label class="editor-form-label">Stratégie d'échec</label>
+                <select class="editor-form-select" id="wf-fail-strategy" onchange="WorkflowEditor.syncPreview()">
+                  <option value="compensate">Saga — Compenser</option>
+                  <option value="abort">Arrêter</option>
+                  <option value="continue">Continuer</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel Droit -->
+          <div class="editor-panel-right">
+
+            <!-- Topbar -->
+            <div class="editor-topbar">
+              <div class="editor-breadcrumb">
+                <span>workflows</span>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-active" id="breadcrumb-type">internship_request</span>
+                <span class="crumb-sep">·</span>
+                <span id="breadcrumb-version" style="color:var(--muted);font-size:10px">v1.0.0</span>
+              </div>
+              <div class="editor-actions-right">
+                <div class="editor-validity-badge neutral" id="editor-validity-badge">
+                  <span id="editor-validity-icon">◌</span>
+                  <span id="editor-validity-text">Non validé</span>
+                </div>
+                <button class="editor-btn" onclick="WorkflowEditor.openPreviewModal()">{ } JSON</button>
+                <button class="editor-btn" onclick="WorkflowEditor.validate()">✓ Valider</button>
+                <button class="editor-btn success" onclick="WorkflowEditor.save()">↑ Enregistrer</button>
+              </div>
+            </div>
+
+            <!-- Main Editor -->
+            <div class="editor-main">
+
+              <!-- Canvas -->
+              <div class="editor-canvas" id="editor-canvas">
+                <div class="editor-canvas-empty" id="editor-canvas-empty">
+                  <div class="editor-canvas-empty-text">Aucune étape configurée.<br>Ajoutez des étapes depuis le panel gauche.</div>
+                </div>
+                <div class="editor-v-pipeline" id="editor-v-pipeline" style="display:none"></div>
+              </div>
+
+              <!-- Property Panel -->
+              <div class="editor-prop-panel" id="editor-prop-panel">
+                <div class="editor-prop-header">
+                  <div class="editor-prop-icon-wrap" id="editor-prop-icon-wrap">
+                    <span id="editor-prop-icon">⚙</span>
+                  </div>
+                  <div>
+                    <div class="editor-prop-title" id="editor-prop-title">Sélectionnez une étape</div>
+                    <div class="editor-prop-subtitle" id="editor-prop-subtitle"></div>
+                  </div>
+                </div>
+                <div class="editor-prop-body" id="editor-prop-body">
+                  <div class="editor-prop-empty">
+                    <div class="editor-prop-empty-icon">←</div>
+                    <div class="editor-prop-empty-text">Cliquez sur une étape<br>pour éditer ses propriétés</div>
+                    <div class="editor-shortcuts-grid" style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px">
+                      <div class="editor-shortcut-row"><span class="editor-shortcut-action">Ajouter</span><span class="editor-kbd">Ctrl+N</span></div>
+                      <div class="editor-shortcut-row"><span class="editor-shortcut-action">Supprimer</span><span class="editor-kbd">Del</span></div>
+                      <div class="editor-shortcut-row"><span class="editor-shortcut-action">Dupliquer</span><span class="editor-kbd">Ctrl+D</span></div>
+                      <div class="editor-shortcut-row"><span class="editor-shortcut-action">Annuler</span><span class="editor-kbd">Ctrl+Z</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="editor-status-bar">
+              <div class="editor-status-item"><div class="editor-status-dot"></div>Actif</div>
+              <span class="editor-status-sep">·</span>
+              <div class="editor-status-item" id="sb-steps"><div class="editor-status-dot" style="--c:var(--blue)"></div><span>0 étapes</span></div>
+              <div class="editor-status-item" id="sb-human"><div class="editor-status-dot" style="--c:var(--cyan)"></div><span>0 humaines</span></div>
+              <div style="margin-left:auto;font-size:10px" id="sb-time">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clients -->
+      <div class="section fade-in" id="section-clients">
+        <div class="client-grid" id="clients-grid">
+          <div class="loading">Chargement...</div>
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="section fade-in" id="section-apikeys">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">API Keys</span>
+            <button class="tb-btn primary" onclick="Modals.open('modal-apikey')">+ Générer une clé</button>
+          </div>
+          <div class="card-body" id="apikeys-list">
+            <div class="loading">Chargement...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="section fade-in" id="section-system">
+        <div class="stats-row">
+          <div class="stat-card" style="--c:var(--green)">
+            <div class="stat-label">Statut PostgreSQL</div>
+            <div class="stat-value" id="sys-db-status">--</div>
+            <div class="stat-sub" id="sys-db-latency">--</div>
+            <div class="stat-icon">⬡</div>
+          </div>
+          <div class="stat-card" style="--c:var(--blue)">
+            <div class="stat-label">Jobs en attente</div>
+            <div class="stat-value" id="sys-jobs-waiting">--</div>
+            <div class="stat-sub" id="sys-jobs-detail">workflow · timeout · reminder</div>
+            <div class="stat-icon">⟳</div>
+          </div>
+          <div class="stat-card" style="--c:var(--purple)">
+            <div class="stat-label">Jobs actifs</div>
+            <div class="stat-value" id="sys-jobs-active">--</div>
+            <div class="stat-sub">en cours d'exécution</div>
+            <div class="stat-icon">▶</div>
+          </div>
+          <div class="stat-card" style="--c:var(--orange)">
+            <div class="stat-label">Uptime</div>
+            <div class="stat-value" id="sys-uptime">--</div>
+            <div class="stat-sub" id="sys-uptime-precise">--</div>
+            <div class="stat-icon">⏱</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Queues — Détail</span>
+              <button class="tb-btn" onclick="Pages.system.load()">↻ Actualiser</button>
+            </div>
+            <div class="card-body">
+              <table class="tbl">
+                <thead>
+                  <tr><th>Queue</th><th>En attente</th><th>Actifs</th><th>Complétés</th><th>Échoués</th></tr>
+                </thead>
+                <tbody id="queues-table">
+                  <tr><td colspan="5" class="loading">Chargement...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Métriques temps réel</span></div>
+            <div class="card-body" id="sys-metrics">
+              <div class="loading">Chargement...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="section fade-in" id="section-settings">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Configuration moteur</span></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Timeout global par défaut (ms)</label>
+                <input class="form-input" type="number" id="setting-timeout" value="30000">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Retries par défaut</label>
+                <input class="form-input" type="number" id="setting-retries" value="2">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Timeout humain par défaut (heures)</label>
+                <input class="form-input" type="number" id="setting-human-timeout" value="72">
+              </div>
+              <div class="form-group">
+                <label class="form-label">URL de callback erreur globale</label>
+                <input class="form-input" type="text" id="setting-callback" placeholder="https://...">
+              </div>
+              <button class="tb-btn primary" onclick="Pages.settings.save()">Sauvegarder</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Statut système</span></div>
+            <div class="card-body">
+              <div id="system-status">
+                <div class="loading">Chargement...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <div class="card-header"><span class="card-title">Configuration SMTP</span></div>
+          <div class="card-body">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:16px">Ces valeurs sont stockées en base de données et appliquées en temps réel.</div>
+            <div class="grid2" style="gap:16px">
+              <div class="form-group" style="margin-bottom:12px">
+                <label class="form-label">SMTP_HOST</label>
+                <input class="form-input" type="text" id="setting-smtp-host" placeholder="smtp.example.com">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label class="form-label">SMTP_PORT</label>
+                <input class="form-input" type="number" id="setting-smtp-port" value="587">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label class="form-label">SMTP_USER</label>
+                <input class="form-input" type="text" id="setting-smtp-user" placeholder="user@domain.com">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label class="form-label">SMTP_FROM</label>
+                <input class="form-input" type="text" id="setting-smtp-from" placeholder="noreply@domain.com">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:16px">
+              <label class="form-label">SMTP_PASS</label>
+              <input class="form-input" type="password" id="setting-smtp-pass" placeholder="••••••••••••••••">
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <div class="card-header"><span class="card-title">Paramètres par client</span></div>
+          <div class="card-body">
+            <table class="tbl">
+              <thead><tr>
+                <th>Client</th>
+                <th>Timeout (ms)</th>
+                <th>Retries</th>
+                <th>Timeout humain (h)</th>
+                <th>Callback URL</th>
+                <th>Actions</th>
+              </tr></thead>
+              <tbody id="client-settings-table">
+                <tr><td colspan="6" class="loading">Chargement...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div class="section fade-in" id="section-logs">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Logs d'accès</span></div>
+          <div class="card-body" style="padding:0">
+            <table class="tbl">
+              <thead><tr>
+                <th>Heure</th><th>Client</th><th>Endpoint</th><th>Méthode</th><th>Statut</th><th>Durée</th><th>IP</th>
+              </tr></thead>
+              <tbody id="logs-table">
+                <tr><td colspan="7" class="loading">Chargement...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="modal-client">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nouveau client</div>
+      <button class="modal-close" onclick="Modals.close('modal-client')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nom du client</label>
+        <input class="form-input" type="text" placeholder="mon-app-production" id="client-name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Scopes</label>
+        <div class="checkbox-group">
+          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:execute</label>
+          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:read</label>
+          <label class="cb-item" onclick="Components.toggleCheckbox(this)"><input type="checkbox">workflow:resume</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tb-btn" onclick="Modals.close('modal-client')">Annuler</button>
+      <button class="tb-btn primary" onclick="Pages.clients.create()">Créer le client</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-apikey">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Générer une API Key</div>
+      <button class="modal-close" onclick="Modals.close('modal-apikey')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Client</label>
+        <select class="form-input" style="cursor:pointer" id="apikey-client-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Scopes</label>
+        <div class="checkbox-group" id="apikey-scopes">
+          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:execute</label>
+          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:read</label>
+          <label class="cb-item" onclick="Components.toggleCheckbox(this)"><input type="checkbox">workflow:resume</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Expiration</label>
+        <select class="form-input" style="cursor:pointer" id="apikey-expires">
+          <option value="">Illimitée</option>
+          <option value="30">30 jours</option>
+          <option value="90">90 jours</option>
+          <option value="365">1 an</option>
+        </select>
+      </div>
+      <div id="apikey-result" style="display:none">
+        <div class="key-reveal">
+          <div class="key-reveal-label">Votre API Key</div>
+          <div class="key-reveal-value" id="generated-key"></div>
+          <div class="key-reveal-warn">⚠ Copiez cette clé maintenant — elle ne sera plus affichée</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tb-btn" onclick="Modals.close('modal-apikey');Pages.apikeys.resetForm()">Fermer</button>
+      <button class="tb-btn primary" id="apikey-btn" onclick="Pages.apikeys.generate()">Générer la clé</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Workflow Editor Modals -->
+<div class="editor-overlay" id="editor-overlay-preview">
+  <div class="editor-modal-box" style="width:560px">
+    <div class="editor-modal-box-header">
+      <div class="editor-modal-box-title">{ } Aperçu JSON</div>
+      <button class="editor-modal-close" onclick="WorkflowEditor.closeModal('editor-overlay-preview')">✕</button>
+    </div>
+    <div class="editor-modal-box-body">
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button class="editor-btn" onclick="WorkflowEditor.copyJson()">⎘ Copier</button>
+        <button class="editor-btn" onclick="WorkflowEditor.downloadJson()">↓ Télécharger</button>
+      </div>
+      <div class="editor-json-preview" id="editor-json-output"></div>
+    </div>
+  </div>
+</div>
+
+<div class="editor-overlay" id="editor-overlay-add-step">
+  <div class="editor-modal-box" style="width:420px">
+    <div class="editor-modal-box-header">
+      <div class="editor-modal-box-title">Ajouter une étape</div>
+      <button class="editor-modal-close" onclick="WorkflowEditor.closeModal('editor-overlay-add-step')">✕</button>
+    </div>
+    <div class="editor-modal-box-body">
+      <div class="editor-step-type-grid">
+        <div class="editor-step-type-card" onclick="WorkflowEditor.addStepOfType('auto')" style="--c:var(--green);--c-bg:var(--bg4)">
+          <div class="editor-step-type-icon">⚙</div>
+          <div class="editor-step-type-name">Automatique</div>
+          <div class="editor-step-type-desc">Appel HTTP vers votre backend. Retry + timeout configurables.</div>
+        </div>
+        <div class="editor-step-type-card" onclick="WorkflowEditor.addStepOfType('human')" style="--c:var(--cyan);--c-bg:var(--bg4)">
+          <div class="editor-step-type-icon">👤</div>
+          <div class="editor-step-type-name">Humaine</div>
+          <div class="editor-step-type-desc">Suspend et attend une décision humaine. Timeout + escalade.</div>
+        </div>
+        <div class="editor-step-type-card" onclick="WorkflowEditor.addStepOfType('condition')" style="--c:var(--orange);--c-bg:var(--bg4)">
+          <div class="editor-step-type-icon">⑂</div>
+          <div class="editor-step-type-name">Condition</div>
+          <div class="editor-step-type-desc">Branche le flux selon une valeur du contexte (JSONPath).</div>
+        </div>
+        <div class="editor-step-type-card" onclick="WorkflowEditor.addStepOfType('parallel')" style="--c:var(--purple);--c-bg:var(--bg4)">
+          <div class="editor-step-type-icon">⫘</div>
+          <div class="editor-step-type-name">Parallèle</div>
+          <div class="editor-step-type-desc">Exécute plusieurs étapes simultanément.</div>
+        </div>
+      </div>
+    </div>
+    <div class="editor-modal-box-footer">
+      <button class="editor-btn" onclick="WorkflowEditor.closeModal('editor-overlay-add-step')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<div class="editor-overlay" id="editor-overlay-errors">
+  <div class="editor-modal-box" style="width:420px">
+    <div class="editor-modal-box-header">
+      <div class="editor-modal-box-title">✗ Erreurs de validation</div>
+      <button class="editor-modal-close" onclick="WorkflowEditor.closeModal('editor-overlay-errors')">✕</button>
+    </div>
+    <div class="editor-modal-box-body">
+      <div class="editor-errors-list" id="editor-errors-list"></div>
+    </div>
+    <div class="editor-modal-box-footer">
+      <button class="editor-btn" onclick="WorkflowEditor.closeModal('editor-overlay-errors')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="editor-overlay" id="editor-overlay-import">
+  <div class="editor-modal-box" style="width:460px">
+    <div class="editor-modal-box-header">
+      <div class="editor-modal-box-title">↑ Importer un workflow JSON</div>
+      <button class="editor-modal-close" onclick="WorkflowEditor.closeModal('editor-overlay-import')">✕</button>
+    </div>
+    <div class="editor-modal-box-body">
+      <div class="editor-drop-zone" id="editor-drop-zone" onclick="document.getElementById('editor-file-input').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-active')"
+           ondragleave="this.classList.remove('drag-active')"
+           ondrop="WorkflowEditor.handleFileDrop(event)">
+        <div style="font-size:24px;margin-bottom:6px;opacity:0.4">⬆</div>
+        Glisser-déposer un fichier .json<br>
+        <span style="color:var(--border3)">ou cliquer pour parcourir</span>
+      </div>
+      <input type="file" id="editor-file-input" accept=".json" style="display:none" onchange="WorkflowEditor.handleFileInput(this)">
+      <div class="editor-divider"></div>
+      <div class="editor-form-group">
+        <label class="editor-form-label">Coller du JSON</label>
+        <textarea class="editor-form-textarea" id="editor-import-text" rows="5" placeholder='{"type":"...","steps":[...]}'></textarea>
+      </div>
+    </div>
+    <div class="editor-modal-box-footer">
+      <button class="editor-btn" onclick="WorkflowEditor.closeModal('editor-overlay-import')">Annuler</button>
+      <button class="editor-btn primary" onclick="WorkflowEditor.importJson()">Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="editor-toast-container" id="editor-toast-container"></div>
+
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/components.js"></script>
+<script src="/admin/js/pages/dashboard.js"></script>
+<script src="/admin/js/pages/executions.js"></script>
+<script src="/admin/js/pages/workflows.js"></script>
+<script src="/admin/js/pages/workflow-editor.js"></script>
+<script src="/admin/js/pages/clients.js"></script>
+<script src="/admin/js/pages/apikeys.js"></script>
+<script src="/admin/js/pages/system.js"></script>
+<script src="/admin/js/pages/settings.js"></script>
+<script src="/admin/js/pages/logs.js"></script>
+<script src="/admin/js/app.js"></script>
+</body>
+</html>

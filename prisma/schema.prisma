@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ApiClient {
+  id            String    @id @default(uuid())
+  name          String
+  allowedTypes  String[]  @default([])
+  scopes        String[]  @default(["workflow:execute", "workflow:read"])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  apiKeys       ApiKey[]
+  executions    WorkflowExecution[]
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  clientId    String
+  keyHash     String    @unique
+  keyPrefix   String
+  scopes      String[]
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  client      ApiClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([keyHash])
+}
+
+model WorkflowRegistry {
+  id          String    @id @default(uuid())
+  type        String    @unique
+  version     String
+  baseUrl     String
+  workflowDef Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+}
+
+model WorkflowExecution {
+  id              String    @id
+  traceId         String
+  type            String
+  clientId        String
+  status          String    @default("RUNNING")
+  payload         Json
+  context         Json?
+  result          Json?
+  error           Json?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  totalDurationMs Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  client          ApiClient @relation(fields: [clientId], references: [id])
+  events          WorkflowEvent[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([type])
+}
+
+model WorkflowEvent {
+  id          String            @id @default(uuid())
+  executionId String
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stepName    String?
+  eventType   String
+  data        Json
+  timestamp   DateTime          @default(now())
+
+  @@index([executionId])
+  @@index([timestamp])
+}
+
+model AccessLog {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now())
+  method      String
+  path        String
+  statusCode  Int
+  durationMs  Int?
+  apiKeyId    String?
+  clientId    String?
+  traceId     String?
+  userAgent   String?
+  ipAddress   String?
+}
+
+model IdempotencyKey {
+  idempotencyKey String   @id
+  executionId    String
+  status         String
+  result         Json?
+  createdAt      DateTime @default(now())
+
+  @@index([executionId])
+}
+
+model KpiSnapshot {
+  workflowType      String   @id
+  total             Int      @default(0)
+  completed         Int      @default(0)
+  failed            Int      @default(0)
+  rejected          Int      @default(0)
+  waitingHuman      Int      @default(0)
+  totalDurationMs   Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([workflowType])
+  @@index([createdAt])
+}
+
+model SystemSettings {
+  id          String   @id @default("default")
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClientSettings {
+  id                  String   @id @default(uuid())
+  clientId            String   @unique
+  defaultTimeoutMs    Int?
+  defaultRetries      Int?
+  humanTimeoutHours   Int?
+  callbackUrl         String?
+  allowedTypes        String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([clientId])
+}

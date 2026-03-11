@@ -1,0 +1,32 @@
+:root{
+  --bg:#07090F;--bg2:#0C101A;--bg3:#111827;--bg4:#161D2E;--bg5:#1C2640;
+  --border:#1C2640;--border2:#243354;--border3:#2E4070;
+  --text:#D4E2F4;--muted:#4E6A8A;--dim:#1E2D45;
+  --text-inverse:#FFFFFF;
+  --blue:#2D7EF8;--blue2:#1A5FCC;--blue-glow:rgba(45,126,248,0.15);
+  --green:#10B981;--green-glow:rgba(16,185,129,0.15);
+  --orange:#F59E0B;--orange-glow:rgba(245,158,11,0.12);
+  --red:#EF4444;--red-glow:rgba(239,68,68,0.12);
+  --purple:#8B5CF6;--purple-glow:rgba(139,92,246,0.12);
+  --cyan:#06B6D4;--cyan-glow:rgba(6,182,212,0.12);
+  --yellow:#EAB308;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-sans:'IBM Plex Sans',sans-serif;
+  --font-display:'Syne',sans-serif;
+  --sidebar:240px;
+  --grid-color:rgba(45,126,248,0.03);
+}
+[data-theme="light"]{
+  --bg:#F8FAFC;--bg2:#FFFFFF;--bg3:#F1F5F9;--bg4:#E2E8F0;--bg5:#CBD5E1;
+  --border:#E2E8F0;--border2:#CBD5E1;--border3:#94A3B8;
+  --text:#1E293B;--muted:#64748B;--dim:#E2E8F0;
+  --text-inverse:#1E293B;
+  --blue:#2563EB;--blue2:#1D4ED8;--blue-glow:rgba(37,99,235,0.1);
+  --green:#059669;--green-glow:rgba(5,150,105,0.1);
+  --orange:#D97706;--orange-glow:rgba(217,119,6,0.1);
+  --red:#DC2626;--red-glow:rgba(220,38,38,0.1);
+  --purple:#7C3AED;--purple-glow:rgba(124,58,237,0.1);
+  --cyan:#0891B2;--cyan-glow:rgba(8,145,178,0.1);
+  --yellow:#CA8A04;
+  --grid-color:rgba(37,99,235,0.05);
+}
