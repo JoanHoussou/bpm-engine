@@ -143,9 +143,9 @@ except BpmClientError as e:
 
 ---
 
-## Option 3: JavaScript / Node.js
+## Option 3: CLI (Terminal) - Tous langages
 
-### CLI (Terminal)
+Le CLI fonctionne sur n'importe quelle machine avec Node.js:
 
 ```bash
 # Installation
@@ -163,30 +163,79 @@ bpm execute workflow_name '{"champ":"valeur"}'  # Exécuter
 bpm status execution_id            # Statut
 bpm approve execution_id            # Approuver
 bpm reject execution_id             # Rejeter
+bpm create workflow.json            # Créer workflow
 ```
 
-### Package npm
+---
+
+## Option 4: Java avec JitPack
+
+Ajoutez cette dépendance dans votre `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>com.github.JoanHoussou</groupId>
+    <artifactId>bpm-engine</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+**Attention:** Cette dépendance inclut tout le projet. Pour une version légère, copiez uniquement `BpmClient.java` dans votre projet.
+
+---
+
+## Option 5: Via API REST (tous langages)
+
+Vous pouvez appeler l'API directement avec votre langage:
 
 ```bash
-npm install @bpm-engine/client
+# Exécuter un workflow
+curl -X POST http://localhost:3000/api/v1/workflow/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer votre_api_key" \
+  -d '{"type":"nom_workflow","payload":{"champ":"valeur"}}'
 ```
 
-```typescript
-import { BpmClient } from '@bpm-engine/client';
+---
 
-const bpm = new BpmClient({
-  baseUrl: 'http://localhost:3000',
-  apiKey: 'votre_api_key'
-});
+## Exemple Complet: Demande de Stage
 
-// Exécuter
-const result = await bpm.execute('workflow', { champ: 'valeur' });
+### 1. Voir le schéma du workflow
 
-// Statut
-const status = await bpm.getStatus(result.executionId);
+```bash
+bpm schema internship_request
+```
 
-// Approuver
-await bpm.approve(result.executionId);
+Résultat:
+```
+  Champs requis:
+    • n1_email
+    • n2_email
+
+  Étapes humaines:
+    ◆ approval-n1
+      Timeout: 48h
+      Décisions: Approuver, Refuser
+```
+
+### 2. Exécuter le workflow
+
+```bash
+bpm execute internship_request '{"n1_email":"superviseur@bridgebankgroup.com","n2_email":"manager@bridgebankgroup.com"}'
+```
+
+### 3. Suivre le statut
+
+```bash
+bpm status exec-xxx
+```
+
+### 4. Approuver ou rejeter
+
+```bash
+bpm approve exec-xxx -c "Demande validée"
+# ou
+bpm reject exec-xxx -c "Documents incomplets"
 ```
 
 ---
