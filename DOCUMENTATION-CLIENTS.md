@@ -245,7 +245,14 @@ bpm reject exec-xxx -c "Documents incomplets"
 1. Connectez-vous au dashboard BPM: `http://localhost:3000/admin/`
 2. Allez dans l'onglet **"Clients"**
 3. Créez un nouveau client ou sélectionnez un client existant
-4. Copiez la clé API
+4. Définissez les **scopes** requis:
+   - `workflow:execute` - Exécuter des workflows
+   - `workflow:read` - Lire le statut
+   - `workflow:resume` - Approuver/Rejeter
+   - `workflow:cancel` - Annuler des executions
+5. Copiez la clé API
+
+### Exemple de scopes
 
 ---
 
@@ -846,15 +853,15 @@ bpm create workflow.json
 
 ## Résumé des endpoints API
 
-| Action | Endpoint | Méthode |
-|--------|----------|---------|
-| Lister workflows | `/api/v1/registry` | GET |
-| Schéma workflow | `/api/v1/registry/{type}/schema` | GET |
-| Exécuter | `/api/v1/workflow/execute` | POST |
-| Statut | `/api/v1/workflow/{id}` | GET |
-| Approuver/Rejeter | `/api/v1/workflow/{id}/resume` | POST |
-| Annuler | `/api/v1/workflow/{id}/cancel` | POST |
-| Créer workflow | `/api/v1/registry/register` | POST |
+| Action | Endpoint | Méthode | Scope requis |
+|--------|----------|---------|--------------|
+| Lister workflows | `/api/v1/registry` | GET | - |
+| Schéma workflow | `/api/v1/registry/{type}/schema` | GET | - |
+| Exécuter | `/api/v1/workflow/execute` | POST | `workflow:execute` |
+| Statut | `/api/v1/workflow/{id}` | GET | `workflow:read` |
+| Approuver/Rejeter | `/api/v1/workflow/{id}/resume` | POST | `workflow:resume` |
+| Annuler | `/api/v1/workflow/{id}/cancel` | POST | `workflow:cancel` |
+| Créer workflow | `/api/v1/registry/register` | POST | - |
 
 ---
 

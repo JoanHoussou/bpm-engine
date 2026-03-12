@@ -79,6 +79,17 @@ export async function workflowRoutes(app: FastifyInstance): Promise<void> {
         });
       }
     }
+    
+    if (path.includes('/cancel')) {
+      if (!client?.scopes?.includes('workflow:cancel')) {
+        return reply.status(403).send({
+          error: 'Insufficient scope: workflow:cancel required',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          trace_id: traceId
+        });
+      }
+    }
   });
 
   app.post('/execute', async (request, reply) => {
@@ -350,5 +361,43 @@ export async function workflowRoutes(app: FastifyInstance): Promise<void> {
         trace_id: traceId,
       });
     }
+  });
+
+  app.post('/:id/cancel', async (request, reply) => {
+    const { id } = request.params as ExecutionParams;
+    const traceId = (request as any).traceId || uuidv4();
+
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id },
+    });
+
+    if (!execution) {
+      return reply.status(404).send({
+        error: `Execution ${id} not found`,
+        trace_id: traceId,
+      });
+    }
+
+    const terminalStates = ['COMPLETED', 'FAILED', 'CANCELLED'];
+    if (terminalStates.includes(execution.status)) {
+      return reply.status(400).send({
+        error: `Cannot cancel execution in terminal state: ${execution.status}`,
+        trace_id: traceId,
+      });
+    }
+
+    await prisma.workflowExecution.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        completedAt: new Date(),
+      },
+    });
+
+    return reply.send({
+      execution_id: id,
+      status: 'CANCELLED',
+      trace_id: traceId,
+    });
   });
 }
