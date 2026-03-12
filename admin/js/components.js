@@ -5,6 +5,8 @@ const Components = {
 
   toggleCheckbox(el) {
     el.classList.toggle('checked');
+    const checkbox = el.querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = el.classList.contains('checked');
   },
 
   statCard(label, value, sub, icon, color) {
@@ -21,6 +23,7 @@ const Components = {
   clientCard(client, index) {
     const colors = ['#2D7EF8,#8B5CF6', '#10B981,#06B6D4', '#F59E0B,#EF4444', '#8B5CF6,#EC4899'];
     const initials = client.name.slice(0, 2).toUpperCase();
+    const allowedTypes = client.allowed_types || [];
     
     return `
       <div class="client-card">
@@ -32,9 +35,13 @@ const Components = {
               <div class="client-id">${client.client_id?.slice(0, 12)}...</div>
             </div>
           </div>
-          <span class="badge completed">Actif</span>
+          <div style="display:flex;gap:8px">
+            <button class="tb-btn" onclick="Pages.clients.openEditModal(${JSON.stringify(client).replace(/"/g, '&quot;')})" title="Modifier">✏️</button>
+            <span class="badge completed">Actif</span>
+          </div>
         </div>
         <div class="client-meta">
+          ${allowedTypes.length > 0 ? `<span class="client-tag" style="background:var(--blue-glow);color:var(--blue)">${allowedTypes.length} type(s)</span>` : ''}
           ${(client.scopes || []).map(s => `<span class="client-tag">${s}</span>`).join('')}
         </div>
       </div>

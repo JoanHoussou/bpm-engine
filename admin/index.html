@@ -89,6 +89,9 @@
     <div class="content">
       <!-- Dashboard -->
       <div class="section active fade-in" id="section-dashboard">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+          <button class="tb-btn primary" onclick="Modals.open('modal-execute-workflow')">▶ Exécuter un workflow</button>
+        </div>
         <div class="stats-row">
           <div class="stat-card" style="--c:var(--blue)">
             <div class="stat-label">Exécutions aujourd'hui</div>
@@ -595,7 +598,7 @@
 <div class="modal-overlay" id="modal-client">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title">Nouveau client</div>
+      <div class="modal-title" id="modal-client-title">Nouveau client</div>
       <button class="modal-close" onclick="Modals.close('modal-client')">✕</button>
     </div>
     <div class="modal-body">
@@ -604,17 +607,25 @@
         <input class="form-input" type="text" placeholder="mon-app-production" id="client-name">
       </div>
       <div class="form-group">
+        <label class="form-label">Types de workflow autorisés</label>
+        <input type="text" class="form-input" placeholder="Rechercher un type..." id="allowed-types-search" oninput="Pages.clients.filterAllowedTypes(this.value)" style="margin-bottom:8px">
+        <div class="checkbox-group" id="allowed-types-group">
+          <!-- Workflow types will be populated here -->
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Sélectionnez les types de workflow que ce client peut exécuter</div>
+      </div>
+      <div class="form-group">
         <label class="form-label">Scopes</label>
-        <div class="checkbox-group">
-          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:execute</label>
-          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:read</label>
-          <label class="cb-item" onclick="Components.toggleCheckbox(this)"><input type="checkbox">workflow:resume</label>
+        <div class="checkbox-group" id="client-scopes-group">
+          <label class="cb-item checked"><input type="checkbox" value="workflow:execute" checked onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:execute</label>
+          <label class="cb-item checked"><input type="checkbox" value="workflow:read" checked onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:read</label>
+          <label class="cb-item"><input type="checkbox" value="workflow:resume" onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:resume</label>
         </div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="tb-btn" onclick="Modals.close('modal-client')">Annuler</button>
-      <button class="tb-btn primary" onclick="Pages.clients.create()">Créer le client</button>
+      <button class="tb-btn primary" id="modal-client-btn" onclick="Pages.clients.save()">Créer le client</button>
     </div>
   </div>
 </div>
@@ -633,9 +644,9 @@
       <div class="form-group">
         <label class="form-label">Scopes</label>
         <div class="checkbox-group" id="apikey-scopes">
-          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:execute</label>
-          <label class="cb-item checked" onclick="Components.toggleCheckbox(this)"><input type="checkbox" checked>workflow:read</label>
-          <label class="cb-item" onclick="Components.toggleCheckbox(this)"><input type="checkbox">workflow:resume</label>
+          <label class="cb-item checked"><input type="checkbox" value="workflow:execute" checked onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:execute</label>
+          <label class="cb-item checked"><input type="checkbox" value="workflow:read" checked onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:read</label>
+          <label class="cb-item"><input type="checkbox" value="workflow:resume" onchange="this.parentElement.classList.toggle('checked', this.checked)">workflow:resume</label>
         </div>
       </div>
       <div class="form-group">
@@ -757,6 +768,63 @@
     <div class="editor-modal-box-footer">
       <button class="editor-btn" onclick="WorkflowEditor.closeModal('editor-overlay-import')">Annuler</button>
       <button class="editor-btn primary" onclick="WorkflowEditor.importJson()">Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Execute Workflow -->
+<div class="modal-overlay" id="modal-execute-workflow">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title">Exécuter un workflow</div>
+      <button class="modal-close" onclick="Modals.close('modal-execute-workflow')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Type de workflow</label>
+        <select class="form-input" style="cursor:pointer" id="execute-workflow-type" onchange="Workflows.updatePayloadTemplate()">
+          <option value="">Sélectionner un type...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payload (JSON)</label>
+        <textarea class="form-input" id="execute-workflow-payload" rows="10" placeholder='{"key": "value"}'></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tb-btn" onclick="Modals.close('modal-execute-workflow')">Annuler</button>
+      <button class="tb-btn primary" onclick="Workflows.execute()">▶ Exécuter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Resume Workflow -->
+<div class="modal-overlay" id="modal-resume-workflow">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Reprendre le workflow</div>
+      <button class="modal-close" onclick="Modals.close('modal-resume-workflow')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Execution ID</label>
+        <input class="form-input" type="text" id="resume-execution-id" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Décision</label>
+        <div class="checkbox-group" id="resume-decision-group">
+          <label class="cb-item"><input type="checkbox" value="approved" onchange="this.parentElement.classList.toggle('checked', this.checked)">Approuver</label>
+          <label class="cb-item"><input type="checkbox" value="rejected" onchange="this.parentElement.classList.toggle('checked', this.checked)">Rejeter</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Commentaire (optionnel)</label>
+        <textarea class="form-input" id="resume-comment" rows="3" placeholder="Commentaire..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tb-btn" onclick="Modals.close('modal-resume-workflow')">Annuler</button>
+      <button class="tb-btn primary" onclick="Workflows.resume()">▶ Reprendre</button>
     </div>
   </div>
 </div>

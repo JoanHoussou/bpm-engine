@@ -8,6 +8,7 @@ import {
   generateKey,
   revokeKey,
   getClientApiKeys,
+  updateClient,
 } from '../../services/ApiKeyService.js';
 import { PrismaClient } from '@prisma/client';
 import { workflowQueue, humanTimeoutQueue, reminderQueue } from '../../queue/queues.js';
@@ -110,6 +111,29 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.status(204).send();
+  });
+
+  app.put('/clients/:id', async (request: FastifyRequest<{ Params: ClientParams; Body: { name?: string; allowed_types?: string[]; scopes?: string[] } }>, reply: FastifyReply) => {
+    const client = await updateClient(
+      request.params.id,
+      request.body.name,
+      request.body.allowed_types,
+      request.body.scopes
+    );
+
+    if (!client) {
+      return reply.status(404).send({
+        error: { error: 'Client not found', code: 'NOT_FOUND' },
+        trace_id,
+      });
+    }
+
+    return reply.send({
+      client_id: client.id,
+      name: client.name,
+      allowed_types: client.allowedTypes,
+      scopes: client.scopes,
+    });
   });
 
   app.post('/clients/:id/keys', async (request: FastifyRequest<{ Params: ClientParams; Body?: { scopes?: string[]; expires_at?: string } }>, reply: FastifyReply) => {
@@ -436,6 +460,133 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.send({ success: true, message: `Workflow cancelled with ${completedSteps.length} compensations` });
+  });
+
+  // Admin execute workflow directly
+  app.post('/execute', async (request: FastifyRequest<{ Body: { type: string; payload: Record<string, unknown>; client_id?: string; idempotency_key?: string } }>, reply: FastifyReply) => {
+    const { type, payload, client_id, idempotency_key } = request.body;
+
+    if (!type || !payload) {
+      return reply.status(400).send({ error: 'Missing required fields: type and payload' });
+    }
+
+    const { ExecutionContext } = await import('../../core/ExecutionContext.js');
+    const { resolveWorkflow } = await import('../../core/WorkflowRegistry.js');
+    const { addWorkflowJob } = await import('../../queue/workers/workflow.worker.js');
+
+    const workflowDef = await resolveWorkflow(type);
+    if (!workflowDef) {
+      return reply.status(404).send({ error: `Workflow type "${type}" not found` });
+    }
+
+    const adminClientId = client_id || 'admin';
+    const traceId = (request.headers['x-trace-id'] as string) || traceId();
+
+    const context = new ExecutionContext(
+      type,
+      adminClientId,
+      payload,
+      traceId,
+      idempotency_key || `admin:${type}:${Date.now()}`
+    );
+
+    await prisma.workflowExecution.create({
+      data: {
+        id: context.execution_id,
+        traceId: context.trace_id,
+        type: context.type,
+        clientId: adminClientId,
+        status: 'QUEUED',
+        payload: payload as any,
+        context: context.serialize() as any,
+        startedAt: new Date(),
+      },
+    });
+
+    await addWorkflowJob(context.execution_id, type);
+
+    return reply.status(202).send({
+      execution_id: context.execution_id,
+      trace_id: traceId,
+      status: 'QUEUED',
+    });
+  });
+
+  // Admin resume workflow directly
+  app.post('/resume', async (request: FastifyRequest<{ Body: { execution_id: string; decision: string; comment?: string } }>, reply: FastifyReply) => {
+    const { execution_id, decision, comment } = request.body;
+
+    if (!execution_id || !decision) {
+      return reply.status(400).send({ error: 'Missing required fields: execution_id and decision' });
+    }
+
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: execution_id },
+    });
+
+    if (!execution) {
+      return reply.status(404).send({ error: `Execution ${execution_id} not found` });
+    }
+
+    if (execution.status !== 'WAITING_HUMAN') {
+      return reply.status(400).send({ error: `Execution ${execution_id} is not waiting for human input` });
+    }
+
+    const resultData = execution.result as any;
+    const humanStep = resultData?.humanStep;
+
+    if (!humanStep) {
+      return reply.status(400).send({ error: 'No human step found in execution context' });
+    }
+
+    const { HumanStepExecutor } = await import('../../phases/phase3-execution/HumanStepExecutor.js');
+    const executor = new HumanStepExecutor('');
+
+    const resumeResult = await executor.resume(execution_id, humanStep, {
+      decision,
+      actor: 'admin',
+      comment,
+    });
+
+    const { getWorkflow } = await import('../../core/WorkflowRegistry.js');
+    const workflowDef = await getWorkflow(execution.type);
+
+    if (!workflowDef) {
+      return reply.status(404).send({ error: `Workflow type ${execution.type} not found` });
+    }
+
+    const { PipelineRunner } = await import('../../core/PipelineRunner.js');
+    const pipeline = new PipelineRunner();
+
+    const contextData = execution.context as any;
+    const { ExecutionContext } = await import('../../core/ExecutionContext.js');
+    const context = ExecutionContext.fromSnapshot({
+      ...contextData,
+      status: 'RUNNING',
+    });
+    context.results.set(humanStep, {
+      success: true,
+      data: resumeResult.decisionData,
+      timestamp: new Date().toISOString(),
+    });
+
+    const continueResult = await pipeline.runContinue(workflowDef, context, resumeResult.nextStep);
+
+    await prisma.workflowExecution.update({
+      where: { id: execution_id },
+      data: {
+        status: continueResult.status,
+        result: continueResult.result as any,
+        error: continueResult.error as any,
+        completedAt: continueResult.status === 'COMPLETED' ? new Date() : null,
+      },
+    });
+
+    return reply.send({
+      execution_id,
+      status: continueResult.status,
+      next_step: resumeResult.nextStep,
+    });
   });
 
   // Replay endpoints

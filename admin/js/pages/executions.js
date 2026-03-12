@@ -95,6 +95,7 @@ Pages.executions = {
             <div class="card-header"><span class="card-title">Actions admin</span></div>
             <div class="card-body">
               <div style="display:flex;flex-direction:column;gap:10px">
+                <button class="tb-btn primary" style="text-align:left;width:100%" onclick="Pages.workflows.openResumeModal('${exec.execution_id}')" ${exec.status !== 'WAITING_HUMAN' ? 'disabled' : ''}>▶ Reprendre le workflow</button>
                 <button class="tb-btn" style="text-align:left;width:100%" onclick="Pages.executions.sendReminder('${exec.execution_id}')" ${exec.status !== 'WAITING_HUMAN' ? 'disabled' : ''}>📧 Envoyer relance maintenant</button>
                 <button class="tb-btn" style="text-align:left;width:100%" onclick="Pages.executions.escalate('${exec.execution_id}')" ${exec.status !== 'WAITING_HUMAN' ? 'disabled' : ''}>↑ Escalader manuellement</button>
                 <button class="tb-btn" style="text-align:left;width:100%;color:var(--orange)" onclick="Pages.executions.suspend('${exec.execution_id}')" ${['WAITING_HUMAN','RUNNING'].indexOf(exec.status) === -1 ? 'disabled' : ''}>⏸ Suspendre le workflow</button>

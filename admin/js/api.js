@@ -12,6 +12,13 @@ const API = {
       delete headers['Content-Type'];
     }
     
+    if (options.body) {
+      headers['Content-Type'] = 'application/json';
+      if (typeof options.body === 'object') {
+        options.body = JSON.stringify(options.body);
+      }
+    }
+    
     try {
       const res = await fetch(`/admin/api${endpoint}`, {
         ...options,
@@ -56,6 +63,20 @@ const API = {
     return this.call(`/executions/${id}`);
   },
 
+  async executeWorkflow(type, payload, clientId = null) {
+    return this.call('/execute', {
+      method: 'POST',
+      body: { type, payload, client_id: clientId }
+    });
+  },
+
+  async resumeWorkflow(executionId, decision, comment = null) {
+    return this.call('/resume', {
+      method: 'POST',
+      body: { execution_id: executionId, decision, comment }
+    });
+  },
+
   // Workflows
   async getWorkflows(limit = 10, offset = 0, search = '') {
     const params = new URLSearchParams();
@@ -68,7 +89,7 @@ const API = {
   async saveWorkflow(workflow) {
     return this.call('/workflows', {
       method: 'POST',
-      body: JSON.stringify(workflow)
+      body: workflow
     });
   },
 
@@ -87,10 +108,17 @@ const API = {
     return this.call(`/clients/${id}`);
   },
 
-  async createClient(name, scopes) {
+  async createClient(name, scopes, allowedTypes = []) {
     return this.call('/clients', {
       method: 'POST',
-      body: JSON.stringify({ name, scopes })
+      body: { name, scopes, allowed_types: allowedTypes }
+    });
+  },
+
+  async updateClient(clientId, data) {
+    return this.call(`/clients/${clientId}`, {
+      method: 'PUT',
+      body: data
     });
   },
 

@@ -44,6 +44,45 @@ export async function workflowRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.addHook('preHandler', async (request, reply) => {
+    const path = request.url;
+    const client = (request as any).client;
+    const traceId = (request as any).traceId;
+    
+    if (path === '/execute' || path.startsWith('/execute')) {
+      if (!client?.scopes?.includes('workflow:execute')) {
+        return reply.status(403).send({
+          error: 'Insufficient scope: workflow:execute required',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          trace_id: traceId
+        });
+      }
+    }
+    
+    if (path.startsWith('/') && !path.includes('/execute') && !path.includes('/resume')) {
+      if (!client?.scopes?.includes('workflow:read')) {
+        return reply.status(403).send({
+          error: 'Insufficient scope: workflow:read required',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          trace_id: traceId
+        });
+      }
+    }
+    
+    if (path.includes('/resume')) {
+      if (!client?.scopes?.includes('workflow:resume')) {
+        return reply.status(403).send({
+          error: 'Insufficient scope: workflow:resume required',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          trace_id: traceId
+        });
+      }
+    }
+  });
+
   app.post('/execute', async (request, reply) => {
     const body = request.body as ExecuteBody;
     const traceId = (request as any).traceId || uuidv4();

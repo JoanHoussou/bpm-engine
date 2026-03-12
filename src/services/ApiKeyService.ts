@@ -149,6 +149,29 @@ export async function getClient(clientId: string): Promise<ClientInfo | null> {
   };
 }
 
+export async function updateClient(
+  clientId: string,
+  name?: string,
+  allowedTypes?: string[],
+  scopes?: string[]
+): Promise<ClientInfo | null> {
+  const client = await prisma.apiClient.update({
+    where: { id: clientId },
+    data: {
+      ...(name && { name }),
+      ...(allowedTypes !== undefined && { allowedTypes }),
+      ...(scopes && { scopes }),
+    },
+  });
+
+  return {
+    id: client.id,
+    name: client.name,
+    allowedTypes: client.allowedTypes,
+    scopes: client.scopes,
+  };
+}
+
 export async function listClients(search = ''): Promise<ClientInfo[]> {
   const where = search ? {
     OR: [
