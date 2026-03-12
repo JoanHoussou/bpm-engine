@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './PrismaService.js';
 
 const DEFAULT_TTL = parseInt(process.env.IDEMPOTENCY_TTL_SECONDS || '604800', 10); // 7 jours par défaut
 

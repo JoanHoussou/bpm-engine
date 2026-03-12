@@ -1,9 +1,7 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { verifyKey, ClientInfo } from '../services/ApiKeyService.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../services/PrismaService.js';
 import { v4 as traceId } from 'uuid';
-
-const prisma = new PrismaClient();
 
 declare module 'fastify' {
   interface FastifyRequest {

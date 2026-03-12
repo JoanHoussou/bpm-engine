@@ -1,13 +1,11 @@
 import { FastifyInstance } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { v4 as uuidv4 } from 'uuid';
 import { ExecutionContext } from '../../core/ExecutionContext.js';
 import { resolveWorkflow } from '../../core/WorkflowRegistry.js';
 import { checkIdempotency, storeIdempotency } from '../../services/IdempotencyService.js';
 import { executeGuardChain, defaultGuardChain, GuardContext } from '../../phases/phase2-validation/GuardChain.js';
 import { addWorkflowJob } from '../../queue/workers/workflow.worker.js';
-
-const prisma = new PrismaClient();
 
 interface ExecuteBody {
   type: string;

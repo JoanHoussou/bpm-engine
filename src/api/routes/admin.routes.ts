@@ -10,12 +10,11 @@ import {
   getClientApiKeys,
   updateClient,
 } from '../../services/ApiKeyService.js';
-import { PrismaClient } from '@prisma/client';
 import { workflowQueue, humanTimeoutQueue, reminderQueue } from '../../queue/queues.js';
 import { loadSystemSettings, getAllSystemSettings, setSystemSetting, getClientSettings, updateClientSettings, deleteClientSettings, getSmtpConfig } from '../../services/SettingsService.js';
-import { registerWorkflow, getWorkflow } from '../../core/WorkflowRegistry.js';
-
-const prisma = new PrismaClient();
+import { registerWorkflow, getWorkflow, WorkflowStep, WorkflowOnComplete, WorkflowOnFailure } from '../../core/WorkflowRegistry.js';
+import { toJsonValue } from '../../core/JsonValue.js';
+import { prisma } from '../../services/PrismaService.js';
 
 interface CreateClientBody {
   name: string;
@@ -343,12 +342,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { NotificationService } = await import('../../phases/phase4-output/NotificationService.js');
     const context = execution.context as Record<string, unknown>;
     const stepName = context.current_step as string;
-    const actionUrl = context.action_url;
+    const actionUrl = context.action_url as string | undefined;
 
     await NotificationService.sendEmail(
       context.approval_email as string || 'admin@example.com',
       'reminder',
-      { executionId: execution.id, type: execution.type, actionUrl, stepName }
+      { executionId: execution!.id, type: execution!.type as string, actionUrl, stepName }
     );
 
     return reply.send({ success: true, message: 'Reminder sent' });
@@ -376,10 +375,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     await prisma.workflowEvent.create({
       data: {
-        executionId: execution.id,
+        executionId: execution!.id,
         eventType: 'HUMAN_ESCALATED',
         stepName: context.current_step as string,
-        data: { escalateTo, originalEmail: context.approval_email, escalatedBy: 'admin' },
+        data: toJsonValue({ escalateTo, originalEmail: context.approval_email, escalatedBy: 'admin' }),
       },
     });
 
@@ -480,13 +479,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const adminClientId = client_id || 'admin';
-    const traceId = (request.headers['x-trace-id'] as string) || traceId();
+    const requestTraceId = (request.headers['x-trace-id'] as string) || traceId();
 
     const context = new ExecutionContext(
       type,
       adminClientId,
       payload,
-      traceId,
+      requestTraceId,
       idempotency_key || `admin:${type}:${Date.now()}`
     );
 
@@ -569,6 +568,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       data: resumeResult.decisionData,
       timestamp: new Date().toISOString(),
     });
+
+    if (!resumeResult.nextStep) {
+      return reply.status(400).send({
+        error: 'No next step specified after resume',
+      });
+    }
 
     const continueResult = await pipeline.runContinue(workflowDef, context, resumeResult.nextStep);
 
@@ -848,7 +853,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Workflow Registry - Admin endpoints
-  app.post('/workflows', async (request: FastifyRequest<{ Body: { type: string; version: string; base_url: string; steps: unknown[]; on_complete?: unknown; on_failure?: unknown } }>, reply: FastifyReply) => {
+  app.post('/workflows', async (request: FastifyRequest<{ Body: { type: string; version: string; base_url: string; steps: WorkflowStep[]; on_complete?: WorkflowOnComplete; on_failure?: WorkflowOnFailure } }>, reply: FastifyReply) => {
     const { type, version, base_url, steps, on_complete, on_failure } = request.body;
 
     if (!type) {

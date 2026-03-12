@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { ExecutionContext, StepResult } from '../../core/ExecutionContext.js';
 import { WorkflowStep } from '../../core/WorkflowRegistry.js';
 import { resolveWorkflow } from '../../core/WorkflowRegistry.js';
@@ -7,8 +7,6 @@ import { toJsonValue } from '../../core/JsonValue.js';
 import { ArchiveService } from '../phase4-output/ArchiveService.js';
 import { scheduleReminder } from '../../queue/workers/reminder.worker.js';
 import { scheduleHumanTimeout } from '../../queue/workers/humanTimeout.worker.js';
-
-const prisma = new PrismaClient();
 
 export class HumanStepSuspendedException extends Error {
   public stepName: string;

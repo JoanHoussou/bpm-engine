@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './PrismaService.js';
+import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 export interface ApiKeyInfo {
   id: string;
@@ -175,7 +174,7 @@ export async function updateClient(
 export async function listClients(search = ''): Promise<ClientInfo[]> {
   const where = search ? {
     OR: [
-      { name: { contains: search, mode: 'insensitive' } },
+      { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
     ]
   } : {};
 

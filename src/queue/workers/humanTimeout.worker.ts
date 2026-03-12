@@ -1,12 +1,10 @@
 import { Worker, Job } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { PipelineRunner } from '../../core/PipelineRunner.js';
 import { ExecutionContext } from '../../core/ExecutionContext.js';
 import { resolveWorkflow } from '../../core/WorkflowRegistry.js';
 import { resolveJsonPath } from '../../core/JsonPathResolver.js';
 import { humanTimeoutQueue, HumanTimeoutJobData } from '../queues.js';
-
-const prisma = new PrismaClient();
 
 const HUMAN_TIMEOUT_QUEUE_NAME = 'human-timeout';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';

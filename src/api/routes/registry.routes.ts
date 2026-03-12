@@ -6,10 +6,31 @@ const WorkflowStepSchema = z.object({
   name: z.string(),
   type: z.enum(['auto', 'human', 'condition', 'parallel']),
   url: z.string().optional(),
+  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional(),
   timeout_ms: z.number().optional(),
   retry: z.number().optional(),
+  retry_delay_ms: z.number().optional(),
+  retry_strategy: z.enum(['fixed', 'exponential', 'linear']).optional(),
+  max_retry_delay_ms: z.number().optional(),
   compensate_url: z.string().optional(),
   on_failure: z.enum(['compensate', 'abort', 'continue']).optional(),
+  
+  // Custom headers
+  headers: z.record(z.string()).optional(),
+  
+  // Authentication configuration
+  auth: z.object({
+    type: z.enum(['none', 'bearer', 'basic', 'api_key', 'client_credentials']),
+    token: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    api_key_name: z.string().optional(),
+    api_key_header: z.string().optional(),
+    token_url: z.string().optional(),
+    client_id: z.string().optional(),
+    client_secret: z.string().optional(),
+    scope: z.string().optional(),
+  }).optional(),
   
   actor: z.string().optional(),
   action_url: z.string().optional(),
@@ -143,6 +164,7 @@ export async function registryRoutes(app: FastifyInstance): Promise<void> {
     if (!workflow) {
       return reply.status(404).send({
         error: `Workflow type "${type}" not found`,
+        message: `Available workflows: ${(await listWorkflows()).map(w => w.type).join(', ')}`,
         trace_id: traceId,
       });
     }
@@ -154,6 +176,62 @@ export async function registryRoutes(app: FastifyInstance): Promise<void> {
       steps: workflow.steps,
       on_complete: workflow.on_complete,
       on_failure: workflow.on_failure,
+      trace_id: traceId,
+    });
+  });
+
+  app.get('/:type/schema', async (request, reply) => {
+    const { type } = request.params as TypeParams;
+    const traceId = (request as any).traceId || `trace-${Date.now()}`;
+
+    const workflow = await getWorkflow(type);
+    
+    if (!workflow) {
+      return reply.status(404).send({
+        error: `Workflow type "${type}" not found`,
+        message: `Available workflows: ${(await listWorkflows()).map(w => w.type).join(', ')}`,
+        trace_id: traceId,
+      });
+    }
+
+    const requiredFields: string[] = [];
+    const optionalFields: string[] = [];
+    const humanSteps: any[] = [];
+
+    for (const step of workflow.steps) {
+      if (step.type === 'human') {
+        humanSteps.push({
+          step: step.name,
+          actor: step.actor,
+          decisions: step.decisions?.map((d: any) => d.label),
+          timeout_hours: step.timeout_hours,
+          on_timeout: step.on_timeout,
+          escalate_to: step.escalate_to,
+        });
+
+        const actorMatch = step.actor?.match(/\$\.payload\.(\w+)/);
+        if (actorMatch) {
+          requiredFields.push(actorMatch[1]);
+        }
+
+        if (step.escalate_to) {
+          const escalateMatch = step.escalate_to.match(/\$\.payload\.(\w+)/);
+          if (escalateMatch) {
+            requiredFields.push(escalateMatch[1]);
+          }
+        }
+      }
+    }
+
+    return reply.send({
+      type: workflow.type,
+      version: workflow.version,
+      required_payload_fields: [...new Set(requiredFields)],
+      optional_payload_fields: [...new Set(optionalFields)],
+      human_steps: humanSteps,
+      example_payload: {
+        ...Object.fromEntries([...new Set(requiredFields)].map(f => [f, `<${f}>`])),
+      },
       trace_id: traceId,
     });
   });

@@ -1,0 +1,17 @@
+{
+  "name": "@bpm-engine/client",
+  "version": "1.0.0",
+  "description": "Client SDK pour BPM Engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["bpm", "workflow", "engine", "automation"],
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,9 +1,7 @@
 import { Worker, Job } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { resolveWorkflow } from '../../core/WorkflowRegistry.js';
 import { reminderQueue, ReminderJobData } from '../queues.js';
-
-const prisma = new PrismaClient();
 
 const REMINDERS_QUEUE_NAME = 'reminders';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';

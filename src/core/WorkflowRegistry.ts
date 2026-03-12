@@ -1,16 +1,37 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../services/PrismaService.js';
 
 export interface WorkflowStep {
   name: string;
   type: 'auto' | 'human' | 'condition' | 'parallel';
   url?: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   timeout_ms?: number;
   retry?: number;
   retry_delay_ms?: number;
+  
+  // Retry strategy configuration
+  retry_strategy?: 'fixed' | 'exponential' | 'linear';
+  max_retry_delay_ms?: number;
+  
   compensate_url?: string;
   on_failure?: 'compensate' | 'abort' | 'continue';
+  
+  // Custom headers for HTTP requests
+  headers?: Record<string, string>;
+  
+  // Authentication configuration for this step
+  auth?: {
+    type: 'none' | 'bearer' | 'basic' | 'api_key' | 'client_credentials';
+    token?: string;
+    username?: string;
+    password?: string;
+    api_key_name?: string;
+    api_key_header?: string;
+    token_url?: string;
+    client_id?: string;
+    client_secret?: string;
+    scope?: string;
+  };
   
   actor?: string;
   action_url?: string;

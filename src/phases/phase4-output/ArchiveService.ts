@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { toJsonValue } from '../../core/JsonValue.js';
-
-const prisma = new PrismaClient();
 
 export interface KPI {
   total: number;
@@ -223,8 +221,22 @@ class ArchiveServiceClass {
       };
     }
 
+    // Get the original execution to copy clientId and traceId
+    const originalExecution = await prisma.workflowExecution.findUnique({
+      where: { id: originalExecutionId },
+    });
+
+    if (!originalExecution) {
+      return {
+        success: false,
+        newExecutionId: null,
+        message: `Original execution ${originalExecutionId} not found`,
+      };
+    }
+
     const { v4: uuidv4 } = await import('uuid');
     const newExecutionId = uuidv4();
+    const newTraceId = uuidv4();
 
     let payload = replayData.payload;
     let startFromStep = 0;
@@ -251,6 +263,28 @@ class ArchiveServiceClass {
 
       payload = this.rebuildPayloadFromEvents(replayData.events, stepIndex);
       startFromStep = stepIndex + 1;
+    }
+
+    // First create the new execution in the database
+    try {
+      await prisma.workflowExecution.create({
+        data: {
+          id: newExecutionId,
+          traceId: newTraceId,
+          type: replayData.type,
+          clientId: originalExecution.clientId,
+          status: 'RUNNING',
+          payload: payload as any,
+          context: {} as any,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to create execution for replay:', err);
+      return {
+        success: false,
+        newExecutionId: null,
+        message: 'Failed to create execution record',
+      };
     }
 
     await this.writeEvent(

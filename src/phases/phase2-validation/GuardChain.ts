@@ -78,7 +78,7 @@ export const SchemaGuard: Guard = async (context: GuardContext): Promise<GuardRe
 };
 
 export const SanitizeGuardNew: Guard = async (context: GuardContext): Promise<GuardResult> => {
-  const { valid, sanitized, warnings } = await SanitizeGuard.checkForXSS(context.body as Record<string, unknown>);
+  const { sanitized, warnings } = await SanitizeGuard.checkForXSS(context.body as Record<string, unknown>);
   
   context.body = sanitized;
 

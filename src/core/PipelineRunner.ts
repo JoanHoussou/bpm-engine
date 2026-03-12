@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../services/PrismaService.js';
 import { ExecutionContext, StepResult } from './ExecutionContext.js';
 import { WorkflowDefinition, WorkflowStep } from './WorkflowRegistry.js';
 import { toJsonValue } from './JsonValue.js';
@@ -6,8 +6,6 @@ import { AutoStepExecutor, StepFailedError } from '../phases/phase3-execution/Au
 import { HumanStepExecutor, HumanStepSuspendedException } from '../phases/phase3-execution/HumanStepExecutor.js';
 import { ArchiveService } from '../phases/phase4-output/ArchiveService.js';
 import { NotificationService } from '../phases/phase4-output/NotificationService.js';
-
-const prisma = new PrismaClient();
 
 export interface PipelineResult {
   success: boolean;
@@ -30,119 +28,7 @@ export class PipelineRunner {
     context: ExecutionContext
   ): Promise<PipelineResult> {
     this.completedSteps = [];
-    
-    const stepMap = new Map<string, WorkflowStep>();
-    for (const step of workflowDef.steps) {
-      stepMap.set(step.name, step);
-    }
-
-    let currentStepIndex = 0;
-
-    while (currentStepIndex < workflowDef.steps.length) {
-      const step = workflowDef.steps[currentStepIndex];
-      
-      context.current_step = step.name;
-      await this.updateExecutionStatus(context, 'RUNNING');
-
-      await ArchiveService.writeEvent(
-        context.execution_id,
-        'STEP_STARTED',
-        step.name,
-        {
-          step_name: step.name,
-          step_type: step.type,
-          started_at: new Date().toISOString(),
-        }
-      );
-
-      try {
-        const result = await this.executeStep(step, context, workflowDef);
-        
-        context.addResult(step.name, result);
-
-        await this.logStepEvent(context, step, result);
-
-        if (!result.success) {
-          if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
-            await this.compensate(context, workflowDef);
-          }
-
-          return {
-            success: false,
-            executionId: context.execution_id,
-            status: 'FAILED',
-            error: result.error,
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        this.completedSteps.push(step.name);
-
-        const nextStepName = this.determineNextStep(step, result);
-        
-        if (nextStepName) {
-          const nextIndex = workflowDef.steps.findIndex(s => s.name === nextStepName);
-          if (nextIndex !== -1) {
-            currentStepIndex = nextIndex;
-            continue;
-          }
-        }
-
-      } catch (error) {
-        if (error instanceof HumanStepSuspendedException) {
-          await this.updateExecutionStatus(context, 'WAITING_HUMAN');
-          
-          return {
-            success: true,
-            executionId: context.execution_id,
-            status: 'WAITING_HUMAN',
-            result: {
-              humanStep: error.stepName,
-              actor: error.actor,
-              decisions: error.decisions,
-            },
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        if (error instanceof StepFailedError) {
-          if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
-            await this.compensate(context, workflowDef);
-          }
-
-          return {
-            success: false,
-            executionId: context.execution_id,
-            status: 'FAILED',
-            error: {
-              code: 'STEP_FAILED',
-              message: error.message,
-              step: error.stepName,
-            },
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        throw error;
-      }
-
-      currentStepIndex++;
-    }
-
-    await this.updateExecutionStatus(context, 'COMPLETED');
-    const durationMs = context.started_at ? Date.now() - new Date(context.started_at).getTime() : 0;
-    
-    this.handlePostCompletion(context, 'COMPLETED', durationMs).catch(err => 
-      console.error('Post-completion handler error:', err)
-    );
-
-    return {
-      success: true,
-      executionId: context.execution_id,
-      status: 'COMPLETED',
-      result: this.collectResults(context),
-      completedSteps: this.completedSteps,
-    };
+    return this.executeWorkflow(workflowDef, context, 0);
   }
 
   async runContinue(
@@ -150,11 +36,6 @@ export class PipelineRunner {
     context: ExecutionContext,
     startStepName: string
   ): Promise<PipelineResult> {
-    const stepMap = new Map<string, WorkflowStep>();
-    for (const step of workflowDef.steps) {
-      stepMap.set(step.name, step);
-    }
-
     const startIndex = workflowDef.steps.findIndex(s => s.name === startStepName);
     if (startIndex === -1) {
       return {
@@ -165,100 +46,150 @@ export class PipelineRunner {
         completedSteps: this.completedSteps,
       };
     }
+    return this.executeWorkflow(workflowDef, context, startIndex);
+  }
+
+  private async executeWorkflow(
+    workflowDef: WorkflowDefinition,
+    context: ExecutionContext,
+    startIndex: number
+  ): Promise<PipelineResult> {
+    const stepMap = new Map<string, WorkflowStep>();
+    for (const step of workflowDef.steps) {
+      stepMap.set(step.name, step);
+    }
 
     let currentStepIndex = startIndex;
 
     while (currentStepIndex < workflowDef.steps.length) {
       const step = workflowDef.steps[currentStepIndex];
       
-      context.current_step = step.name;
-      await this.updateExecutionStatus(context, 'RUNNING');
-
-      await ArchiveService.writeEvent(
-        context.execution_id,
-        'STEP_STARTED',
-        step.name,
-        {
-          step_name: step.name,
-          step_type: step.type,
-          started_at: new Date().toISOString(),
-        }
-      );
-
-      try {
-        const result = await this.executeStep(step, context, workflowDef);
-        
-        context.addResult(step.name, result);
-
-        await this.logStepEvent(context, step, result);
-
-        if (!result.success) {
-          if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
-            await this.compensate(context, workflowDef);
-          }
-
-          return {
-            success: false,
-            executionId: context.execution_id,
-            status: 'FAILED',
-            error: result.error,
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        this.completedSteps.push(step.name);
-
-        const nextStepName = this.determineNextStep(step, result);
-        
-        if (nextStepName) {
-          const nextIndex = workflowDef.steps.findIndex(s => s.name === nextStepName);
-          if (nextIndex !== -1) {
-            currentStepIndex = nextIndex;
-            continue;
-          }
-        }
-
-      } catch (error) {
-        if (error instanceof HumanStepSuspendedException) {
-          await this.updateExecutionStatus(context, 'WAITING_HUMAN');
-          
-          return {
-            success: true,
-            executionId: context.execution_id,
-            status: 'WAITING_HUMAN',
-            result: {
-              humanStep: error.stepName,
-              actor: error.actor,
-              decisions: error.decisions,
-            },
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        if (error instanceof StepFailedError) {
-          if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
-            await this.compensate(context, workflowDef);
-          }
-
-          return {
-            success: false,
-            executionId: context.execution_id,
-            status: 'FAILED',
-            error: {
-              code: 'STEP_FAILED',
-              message: error.message,
-              step: error.stepName,
-            },
-            completedSteps: this.completedSteps,
-          };
-        }
-
-        throw error;
+      const stepResult = await this.executeStepWithHandlers(step, context, workflowDef);
+      
+      if (stepResult.return) {
+        return stepResult.return;
       }
 
       currentStepIndex++;
     }
 
+    return this.completeWorkflow(context);
+  }
+
+  private async executeStepWithHandlers(
+    step: WorkflowStep,
+    context: ExecutionContext,
+    workflowDef: WorkflowDefinition
+  ): Promise<{ return?: PipelineResult }> {
+    context.current_step = step.name;
+    await this.updateExecutionStatus(context, 'RUNNING');
+
+    await ArchiveService.writeEvent(
+      context.execution_id,
+      'STEP_STARTED',
+      step.name,
+      {
+        step_name: step.name,
+        step_type: step.type,
+        started_at: new Date().toISOString(),
+      }
+    );
+
+    try {
+      const result = await this.executeStep(step, context, workflowDef);
+      
+      context.addResult(step.name, result);
+
+      await this.logStepEvent(context, step, result);
+
+      if (!result.success) {
+        if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
+          await this.compensate(context, workflowDef);
+        }
+
+        return {
+          return: {
+            success: false,
+            executionId: context.execution_id,
+            status: 'FAILED',
+            error: result.error,
+            completedSteps: this.completedSteps,
+          },
+        };
+      }
+
+      this.completedSteps.push(step.name);
+
+      const nextStepName = this.determineNextStep(step, result);
+      
+      if (nextStepName) {
+        const nextIndex = workflowDef.steps.findIndex(s => s.name === nextStepName);
+        if (nextIndex !== -1) {
+          return { return: undefined };
+        }
+      }
+
+    } catch (error) {
+      const errorResult = this.handleStepError(error, step, context, workflowDef);
+      if (errorResult) {
+        return { return: errorResult };
+      }
+      throw error;
+    }
+
+    return {};
+  }
+
+  private handleStepError(
+    error: unknown,
+    step: WorkflowStep,
+    context: ExecutionContext,
+    workflowDef: WorkflowDefinition
+  ): PipelineResult | null {
+    if (error instanceof HumanStepSuspendedException) {
+      this.updateExecutionStatus(context, 'WAITING_HUMAN').catch(err => 
+        console.error('Failed to update status:', err)
+      );
+      
+      return {
+        success: true,
+        executionId: context.execution_id,
+        status: 'WAITING_HUMAN',
+        result: {
+          humanStep: error.stepName,
+          actor: error.actor,
+          decisions: error.decisions,
+        },
+        completedSteps: this.completedSteps,
+      };
+    }
+
+    if (error instanceof StepFailedError) {
+      if (step.on_failure === 'compensate' && this.completedSteps.length > 0) {
+        this.compensate(context, workflowDef).catch(err => 
+          console.error('Compensation failed:', err)
+        );
+      }
+
+      return {
+        success: false,
+        executionId: context.execution_id,
+        status: 'FAILED',
+        error: {
+          code: 'STEP_FAILED',
+          message: error.message,
+          step: error.stepName,
+        },
+        completedSteps: this.completedSteps,
+      };
+    }
+
+    return null;
+  }
+
+  private async completeWorkflow(
+    context: ExecutionContext,
+  ): Promise<PipelineResult> {
     await this.updateExecutionStatus(context, 'COMPLETED');
     const durationMs = context.started_at ? Date.now() - new Date(context.started_at).getTime() : 0;
     

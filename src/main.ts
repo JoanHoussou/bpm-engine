@@ -10,13 +10,11 @@ import { registryRoutes } from './api/routes/registry.routes.js';
 import { adminAuthMiddleware } from './middleware/adminAuth.middleware.js';
 import { verifyKey } from './services/ApiKeyService.js';
 import { loadWorkflowsToMemory } from './core/WorkflowRegistry.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './services/PrismaService.js';
 import { workflowWorker } from './queue/workers/workflow.worker.js';
 import { humanTimeoutWorker } from './queue/workers/humanTimeout.worker.js';
 import { reminderWorker } from './queue/workers/reminder.worker.js';
 import { loadSystemSettings } from './services/SettingsService.js';
-
-const prisma = new PrismaClient();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,10 +96,10 @@ const start = async () => {
     app.log.info('PostgreSQL connected');
 
     const count = await loadWorkflowsToMemory();
-    app.log.info(`WorkflowRegistry: ${count} workflows loaded to memory`);
+    console.log(`WorkflowRegistry: ${count} workflows loaded to memory`);
 
     const config = await loadSystemSettings();
-    app.log.info('System settings loaded:', config);
+    console.log('System settings loaded:', config);
 
     console.log('[BullMQ] Workers started: workflow, human-timeout, reminders');
     console.log(`[BullMQ] workflowWorker: ${workflowWorker.name}`);

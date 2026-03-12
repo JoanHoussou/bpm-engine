@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../services/PrismaService.js';
 
 interface SanitizeOptions {
   allowHtml?: boolean;
@@ -17,13 +15,7 @@ export class SanitizeGuard {
     /vbscript:/gi,
   ];
 
-  private static readonly DANGEROUS_TAGS = [
-    'script', 'iframe', 'object', 'embed', 'form', 'input',
-    'link', 'style', 'base', 'meta', 'xml', 'plaintext'
-  ];
-
   static sanitize(input: unknown, options: SanitizeOptions = {}): unknown {
-    const { allowHtml = false, allowScripts = false, allowUrls = false } = options;
 
     if (input === null || input === undefined) {
       return input;
@@ -47,13 +39,13 @@ export class SanitizeGuard {
   private static sanitizeString(input: string, options: SanitizeOptions): string {
     let result = input;
 
-    if (!allowScripts) {
+    if (!options.allowScripts) {
       for (const pattern of this.DANGEROUS_PATTERNS) {
         result = result.replace(pattern, '');
       }
     }
 
-    if (!allowHtml) {
+    if (!options.allowHtml) {
       result = result
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -62,7 +54,7 @@ export class SanitizeGuard {
         .replace(/\//g, '&#x2F;');
     }
 
-    if (!allowUrls) {
+    if (!options.allowUrls) {
       result = result
         .replace(/javascript:/gi, '')
         .replace(/data:/gi, '')
@@ -132,7 +124,6 @@ export class SanitizeGuard {
           path: '/sanitize-check',
           statusCode: 200,
           traceId,
-          data: { warnings } as any,
         },
       }).catch(console.error);
     }

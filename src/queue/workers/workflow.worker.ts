@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/PrismaService.js';
 import { PipelineRunner } from '../../core/PipelineRunner.js';
 import { ExecutionContext } from '../../core/ExecutionContext.js';
 import { resolveWorkflow } from '../../core/WorkflowRegistry.js';
@@ -7,8 +7,6 @@ import { toJsonValue } from '../../core/JsonValue.js';
 import { ArchiveService } from '../../phases/phase4-output/ArchiveService.js';
 import { workflowQueue, WorkflowJobData } from '../queues.js';
 import { humanTimeoutQueue } from '../queues.js';
-
-const prisma = new PrismaClient();
 
 const WORKFLOW_QUEUE_NAME = 'workflow-execution';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';

@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './PrismaService.js';
+import { toJsonValue } from '../core/JsonValue.js';
 
 export interface SystemConfig {
   defaultTimeoutMs: number;
@@ -44,7 +43,7 @@ export async function loadSystemSettings(): Promise<SystemConfig> {
   for (const s of settings) {
     const key = s.key as keyof SystemConfig;
     if (key in config) {
-      (config as Record<string, unknown>)[key] = s.value;
+      (config as unknown as Record<string, unknown>)[key] = s.value;
     }
   }
 
@@ -61,8 +60,8 @@ export async function getSystemSetting(key: string) {
 export async function setSystemSetting(key: string, value: unknown, description?: string) {
   const setting = await prisma.systemSettings.upsert({
     where: { key },
-    update: { value, description },
-    create: { key, value, description },
+    update: { value: toJsonValue(value), description },
+    create: { key, value: toJsonValue(value), description },
   });
   
   cachedConfig = null;
